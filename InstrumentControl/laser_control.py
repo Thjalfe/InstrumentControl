@@ -3,7 +3,7 @@ import pyvisa as visa
 import time
 from pylablib.devices import Thorlabs
 import copy
-from OSA_control import OSA
+from .OSA_control import OSA
 
 class laser:
     # Calibration data for the different lasers
@@ -216,13 +216,13 @@ class TiSapphire:
     The Ti Sa laser is controlled externally by a Newport SMC100 motor, so it has a different class. 
     """
     def __init__(self, com_port, NSL=10, PSL=10):
-        import Newport_control as nc
+        from .Newport_control import actuator
         #Set up parameters for Ti Sa control, this file is installed automatically when the Newport SMC100 software is installed
         SMC_file_loc = ('C:/Windows/Microsoft.NET/assembly/GAC_64/' +
                 'Newport.SMC100.CommandInterface/' +
                 'v4.0_2.0.0.3__d9d722840772240b/')
 
-        self.act = nc.actuator(SMC_file_loc, com_port)
+        self.act = actuator(SMC_file_loc, com_port)
         self.act.initialize(PSL, NSL)
     
     def delta_wl_nm(self, del_wl):
