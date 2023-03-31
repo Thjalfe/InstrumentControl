@@ -9,6 +9,7 @@ edited by thjalfe March 13 2023
 """
 
 import time
+
 # The CLR module provide functions for interacting with the underlying
 # .NET runtime
 # The crl module is part of pythonnet, which needs to be installed
@@ -30,12 +31,12 @@ class actuator:
         """
 
         # Add reference to assembly and import names from namespace
-        clr.AddReference(file_loc + 'Newport.SMC100.CommandInterface.dll')
+        clr.AddReference(file_loc + "Newport.SMC100.CommandInterface.dll")
         import CommandInterfaceSMC100 as CI
 
         # Instrument Initialization
         self.instrument = "COM" + str(port)
-        print('Instrument Key=>', self.instrument)
+        print("Instrument Key=>", self.instrument)
 
         # create a device instance
         self.SMC = CI.SMC100()
@@ -59,25 +60,25 @@ class actuator:
         self.SMC.OpenInstrument(self.instrument)
 
         # Do a home search
-        result, errString = self.SMC.OR(1, '')
+        result, errString = self.SMC.OR(1, "")
         if result == 0:
-            print('Home search done')
+            print("Home search done")
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
         # Set positive software limit
-        result, errString = self.SMC.SR_Set(1, PSL, '')
+        result, errString = self.SMC.SR_Set(1, PSL, "")
         if result == 0:
-            print('Positive software limit set')
+            print("Positive software limit set")
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
         # Set negative software limit
-        result, errString = self.SMC.SL_Set(1, NSL, '')
+        result, errString = self.SMC.SL_Set(1, NSL, "")
         if result == 0:
-            print('Negative software limit set')
+            print("Negative software limit set")
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
     def move(self, dist):
         """
@@ -94,28 +95,28 @@ class actuator:
 
         """
         # Move
-        result, errString = self.SMC.PR_Set(1, dist, '')
+        result, errString = self.SMC.PR_Set(1, dist, "")
         if result == 0:
-            print('Moving')
+            print("Moving")
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
-        resul, Errorccode, status, errString = self.SMC.TS(1, '', '', '')
-        while status == '28':
+        resul, Errorccode, status, errString = self.SMC.TS(1, "", "", "")
+        while status == "28":
             time.sleep(0.1)
-            resul, Errorccode, status, errString = self.SMC.TS(1, '', '', '')
+            resul, Errorccode, status, errString = self.SMC.TS(1, "", "", "")
 
-        if Errorccode == '':
-            print('Moved succesfully')
+        if Errorccode == "":
+            print("Moved succesfully")
         else:
-            print('Error: ' + Errorccode)
+            print("Error: " + Errorccode)
 
         # Get current position
-        result, response, errString = self.SMC.TP(1, 00, '')
+        result, response, errString = self.SMC.TP(1, 00, "")
         if result == 0:
-            print('position=>', response)
+            print("position=>", response)
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
         return response
 
@@ -129,28 +130,28 @@ class actuator:
 
         """
         # Move
-        result, errString = self.SMC.PA_Set(1, 0, '')
+        result, errString = self.SMC.PA_Set(1, 0, "")
         if result == 0:
-            print('Moving')
+            print("Moving")
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
-        resul, Errorccode, status, errString = self.SMC.TS(1, '', '', '')
-        while status == '28':
+        resul, Errorccode, status, errString = self.SMC.TS(1, "", "", "")
+        while status == "28":
             time.sleep(0.1)
-            resul, Errorccode, status, errString = self.SMC.TS(1, '', '', '')
+            resul, Errorccode, status, errString = self.SMC.TS(1, "", "", "")
 
-        if Errorccode == '':
-            print('Homed succesfully')
+        if Errorccode == "":
+            print("Homed succesfully")
         else:
-            print('Error: ' + Errorccode)
+            print("Error: " + Errorccode)
 
         # Get current position
-        result, response, errString = self.SMC.TP(1, 00, '')
+        result, response, errString = self.SMC.TP(1, 00, "")
         if result == 0:
-            print('position=>', response)
+            print("position=>", response)
         else:
-            print('Error=>', errString)
+            print("Error=>", errString)
 
         return response
 

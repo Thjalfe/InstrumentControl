@@ -3,8 +3,21 @@ import pyvisa as visa
 import time
 import os
 
+
 class OSA:
-    def __init__(self, wavelength_start, wavelength_end, open=False, resolution=1, sensitivity='SMID', sweeptype='SGL', Trace='A', sweep_time=0, sample=None):
+    def __init__(
+        self,
+        wavelength_start,
+        wavelength_end,
+        open=False,
+        resolution=1,
+        sensitivity="SMID",
+        sweeptype="SGL",
+        Trace="A",
+        sweep_time=0,
+        sample=None,
+        GPIB_num=18,
+    ):
         """
         Class for controlling the ANDO AQ6317B OSA.
         Args:
@@ -31,14 +44,14 @@ class OSA:
         self.TLS_on = 0
 
         rm = visa.ResourceManager()
-        self.device = rm.open_resource('GPIB0::' + '18' + '::INSTR')
+        self.device = rm.open_resource("GPIB0::" + f"{GPIB_num}" + "::INSTR")
         self.device.timeout = 30000
         self.set_span(wavelength_start, wavelength_end)
         self.set_res(resolution)
-        if sample != None:
+        if sample is not None:
             self.set_sample(sample)
         self.set_sens(sensitivity)
-        if self.device.query('TLSSYNC?')[0] == str(1):
+        if self.device.query("TLSSYNC?")[0] == str(1):
             self.TLS_on = 1
             print("Warning! TLS sync is ON. Spectrum is not saved automatically!")
         else:
@@ -47,28 +60,28 @@ class OSA:
         self.device_open = True
 
     def set_sweeptype(self, sweeptype):
-        self.sweeptype = sweeptype
+        self.device.write(sweeptype)
 
     def stop_sweep(self):
-        self.device.write('STP')
+        self.device.write("STP")
         time.sleep(1)
 
     def set_span(self, wavelength_start, wavelength_end):
-        self.device.write('STAWL' + str(wavelength_start))
-        self.device.write('STPWL' + str(wavelength_end))
+        self.device.write("STAWL" + str(wavelength_start))
+        self.device.write("STPWL" + str(wavelength_end))
 
     def set_res(self, resolution):
-        self.device.write('RESLN' + str(resolution))
+        self.device.write("RESLN" + str(resolution))
         self.resolution = resolution
 
     def set_level(self, level):
-        self.device.write('REFL' + str(level))
+        self.device.write("REFL" + str(level))
 
     def set_level_scale(self, level_scale):
-        self.device.write('LSCL' + str(level_scale))
+        self.device.write("LSCL" + str(level_scale))
 
     def set_sample(self, sample_numb):
-        self.device.write('SMPL' + str(sample_numb))
+        self.device.write("SMPL" + str(sample_numb))
         self.sample = sample_numb
 
     def set_sens(self, sensitivity):
@@ -76,7 +89,7 @@ class OSA:
         self.sensitiviy = sensitivity
 
     def set_TLS(self, TLS):
-        self.device.write('TLSSYNC'+str(TLS))
+        self.device.write("TLSSYNC" + str(TLS))
         if TLS == 1:
             self.TLS_on = 1
         if TLS == 0:
@@ -92,13 +105,15 @@ class OSA:
         if self.TLS_on == 0:
             stat = 1
             while stat != 0:
-                stat = int(self.device.query('SWEEP?')[:1])
+                stat = int(self.device.query("SWEEP?")[:1])
                 time.sleep(0.1)
             # time.sleep(self.sweep_time)
             wav = self.device.query_ascii_values(
-                'WDAT' + str(self.trace), container=np.array)
+                "WDAT" + str(self.trace), container=np.array
+            )
             power = self.device.query_ascii_values(
-                'LDAT' + str(self.trace), container=np.array)
+                "LDAT" + str(self.trace), container=np.array
+            )
             wav = wav[1:]
             power = power[1:]
             self.wavelengths = wav
@@ -106,9 +121,11 @@ class OSA:
 
     def get_spectrum(self):
         wav = self.device.query_ascii_values(
-            'WDAT' + str(self.trace), container=np.array)
+            "WDAT" + str(self.trace), container=np.array
+        )
         power = self.device.query_ascii_values(
-            'LDAT' + str(self.trace), container=np.array)
+            "LDAT" + str(self.trace), container=np.array
+        )
         wav = wav[1:]
         power = power[1:]
         self.wavelengths = wav
@@ -124,13 +141,12 @@ class OSA:
         # Avoid overwriting an existing file
         i = 1
         # parent_folder = os.path.dirname(os.path.dirname(os.getcwd()))
-        while os.path.exists(os.path.join(name + '.csv')) is True:
-            name = name + '_' + str(i)
+        while os.path.exists(os.path.join(name + ".csv")) is True:
+            name = name + "_" + str(i)
             i = i + 1
 
         res = np.column_stack((self.wavelengths, self.powers))
-        np.savetxt(os.path.join(name + '.csv'), res, fmt='%f',
-                   delimiter=',')
+        np.savetxt(os.path.join(name + ".csv"), res, fmt="%f", delimiter=",")
 
     def close(self):
         self.device.close()
