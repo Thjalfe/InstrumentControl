@@ -424,7 +424,9 @@ class laser:
         ]
     )
 
-    def __init__(self, type, target_wavelength, power="default", wl_interp=False):
+    def __init__(
+        self, type, target_wavelength, power="default", wl_interp=False, GPIB_num=0
+    ):
         self.type = type
         self.target_wavelength = target_wavelength
         self.actual_wavelength = 0
@@ -444,13 +446,13 @@ class laser:
             self.device.home()
             self.device.wait_for_home()
         if self.type == "santec":
-            self.device = rm.open_resource("GPIB0::" + "3" + "::INSTR")
+            self.device = rm.open_resource(f"GPIB{GPIB_num}::3::INSTR")
         if self.type == "ando":
-            self.device = rm.open_resource("GPIB0::" + "24" + "::INSTR")
+            self.device = rm.open_resource(f"GPIB{GPIB_num}::24::INSTR")
         if self.type == "ando2":
-            self.device = rm.open_resource("GPIB0::" + "23" + "::INSTR")
+            self.device = rm.open_resource(f"GPIB{GPIB_num}::23::INSTR")
         if self.type == "agilent":
-            self.device = rm.open_resource("GPIB0::" + "10" + "::INSTR")
+            self.device = rm.open_resource(f"GPIB{GPIB_num}::10::INSTR")
         self.set_wavelength(target_wavelength)
         self.set_power(power)
 
@@ -523,13 +525,16 @@ class laser:
             else:
                 print("Power must be between -10 and 6")
 
-    def adjust_wavelength(self):
+    def adjust_wavelength(self, OSA_GPIB_num=[0, 18]):
         """
         Adjusts the wavelength to the target wavelength using the OSA.
         """
         wavelength_target = copy.copy(self.target_wavelength)
         align_osa = OSA(
-            self.target_wavelength - 0.5, self.target_wavelength + 0.5, resolution=0.01
+            self.target_wavelength - 0.5,
+            self.target_wavelength + 0.5,
+            resolution=0.01,
+            GPIB_num=OSA_GPIB_num,
         )  # ,sweep_time=5)
         # align_osa = OSA(self.target_wavelength-1.0,self.target_wavelength+1.0,resolution=0.05)#,sweep_time=5)
         align_osa.set_sample(10001)
@@ -615,3 +620,49 @@ class TiSapphire:
         Moves the motor by del_wl mm, which is the Newport SMC100's native unit, but gives arbitrary response from Ti Sa.
         """
         self.act.move(del_wl)
+
+    def set_wavelength(
+        self, target_wl, error_tolerance=0.1, OSA_GPIB_num=[0, 18], res=0.05
+    ):
+        """
+        Sets the wavelength of the TiSa laser.
+        Args:
+            target_wl: self explanatory
+            error_tolerance: Error tolerated from the OSA to target wl
+
+        """
+        osa = OSA(target_wl - 10, target_wl + 10, resolution=res, GPIB_num=OSA_GPIB_num)
+        peak_val = np.max(osa.powers)
+        counter = 1
+        while peak_val < -65:  # Keeps expanding sweep size until TiSa is visible
+            counter += 1
+            osa = OSA(
+                target_wl - 10 * counter,
+                target_wl + 10 * counter,
+                resolution=res,
+                GPIB_num=OSA_GPIB_num,
+            )
+            peak_val = np.max(osa.powers)
+        wl_cur = osa.wavelengths[np.argmax(osa.powers)]
+        nm_diff = target_wl - wl_cur
+        if counter > 1:  # If TiSa started far from target, do one rough step first
+            self.delta_wl_nm(nm_diff)
+            time.sleep(2)
+            osa.sweep()
+            wl_cur = osa.wavelengths[np.argmax(osa.powers)]
+            nm_diff = target_wl - wl_cur
+        while np.abs(nm_diff) > error_tolerance:
+            self.delta_wl_nm(nm_diff)
+            if np.abs(nm_diff) > 0.5:
+                if nm_diff > 0:
+                    osa = OSA(
+                        wl_cur, wl_cur + 2 * nm_diff, resolution=res, GPIB_num=OSA_GPIB_num
+                    )
+                else:
+                    osa = OSA(
+                        wl_cur + 2 * nm_diff, wl_cur, resolution=res, GPIB_num=OSA_GPIB_num
+                    )
+            else:
+                osa = OSA(wl_cur - 0.5, wl_cur + 0.5, resolution=res, GPIB_num=OSA_GPIB_num)
+            wl_cur = osa.wavelengths[np.argmax(osa.powers)]
+            nm_diff = target_wl - wl_cur

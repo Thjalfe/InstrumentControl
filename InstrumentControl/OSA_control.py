@@ -16,7 +16,7 @@ class OSA:
         Trace="A",
         sweep_time=0,
         sample=None,
-        GPIB_num=18,
+        GPIB_num=[0, 18],
     ):
         """
         Class for controlling the ANDO AQ6317B OSA.
@@ -44,7 +44,7 @@ class OSA:
         self.TLS_on = 0
 
         rm = visa.ResourceManager()
-        self.device = rm.open_resource("GPIB0::" + f"{GPIB_num}" + "::INSTR")
+        self.device = rm.open_resource(f"GPIB{GPIB_num[0]}::{GPIB_num[1]}::INSTR")
         self.device.timeout = 30000
         self.set_span(wavelength_start, wavelength_end)
         self.set_res(resolution)
