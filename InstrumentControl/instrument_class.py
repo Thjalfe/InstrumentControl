@@ -181,15 +181,16 @@ class piezo:
 
 
 class PM:
-    """
-    Thorlabs PM100D power meter.
-    """
-
     def __init__(self):
         rm = visa.ResourceManager()
-        self.device = rm.open_resource(
-            "USB0::0x1313::0x8078::P0009779::INSTR", timeout=1
-        )
+        if "USB0::0x1313::0x8078::P0034465::INSTR" in rm.list_resources():
+            self.device = rm.open_resource(
+                "USB0::0x1313::0x8078::P0034465::INSTR", timeout=1
+            )
+        elif "USB0::0x1313::0x8078::P0009779::INSTR" in rm.list_resources():
+            self.device = rm.open_resource(
+                "USB0::0x1313::0x8078::P0009779::INSTR", timeout=1
+            )
         self.PM = ThorlabsPM100(inst=self.device)
 
     def read(self, scale="dBm", sleep=True):

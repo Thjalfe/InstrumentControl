@@ -3,7 +3,7 @@ import pyvisa as visa
 import time
 from pylablib.devices import Thorlabs
 import copy
-from .OSA_control import OSA
+from InstrumentClass.OSA_control import OSA
 
 
 class laser:
@@ -525,7 +525,7 @@ class laser:
             else:
                 print("Power must be between -10 and 6")
 
-    def adjust_wavelength(self, OSA_GPIB_num=[0, 18]):
+    def adjust_wavelength(self, res=0.01, sens='SMID', OSA_GPIB_num=[0, 18]):
         """
         Adjusts the wavelength to the target wavelength using the OSA.
         """
@@ -533,10 +533,10 @@ class laser:
         align_osa = OSA(
             self.target_wavelength - 0.5,
             self.target_wavelength + 0.5,
-            resolution=0.01,
+            resolution=res,
+            sensitivity=sens,
             GPIB_num=OSA_GPIB_num,
         )  # ,sweep_time=5)
-        # align_osa = OSA(self.target_wavelength-1.0,self.target_wavelength+1.0,resolution=0.05)#,sweep_time=5)
         align_osa.set_sample(10001)
         peak = np.argmax(align_osa.powers)
         align_peak = align_osa.wavelengths[peak]
@@ -610,9 +610,10 @@ class TiSapphire:
 
     def delta_wl_nm(self, del_wl):
         """
-        Moves the Ti Sa laser by a certain number of nanometers, the measured response is not linear, but it should be in the right ballpark.
+        Moves the Ti Sa laser by a certain number of nanometers.
         """
-        dist_1nm = -0.0678  # LGN measured response for 1 nm
+        # dist_1nm = -0.0678  # LGN measured response for 1 nm
+        dist_1nm = -0.08297  # Thjalfe measured response for 1 nm (960-990 nm, R^2 = 0.99974)
         self.act.move(del_wl * dist_1nm)
 
     def delta_wl_arb(self, del_wl):
@@ -620,6 +621,10 @@ class TiSapphire:
         Moves the motor by del_wl mm, which is the Newport SMC100's native unit, but gives arbitrary response from Ti Sa.
         """
         self.act.move(del_wl)
+
+    def get_pos(self):
+        result, response, errString = self.act.SMC.TP(1, 00, "")
+        return response
 
     def set_wavelength(
         self, target_wl, error_tolerance=0.1, OSA_GPIB_num=[0, 18], res=0.05
