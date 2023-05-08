@@ -16,13 +16,13 @@ class PicoAWG:
         self.delta_phase_increment = 0
         self.dwell_time = 1
         self.dwell_count = 0
-        self.sweep_type = 1
+        self.sweep_type = 0
         self.operation = 0
         self.shots = 0
         self.sweeps = 0
         self.triggertype = 0
         self.triggerSource = 0
-        self.extInThreshold = 0
+        self.extInThreshold = 1
         self.index_mode = 0
         self.waveform_data = None
 
@@ -62,22 +62,26 @@ class PicoAWG:
             triggerSource (int): The trigger source (channel A, channel B, external, or software).
             extInThreshold (int): The external trigger voltage threshold in millivolts.
         """
+        wave_type = ctypes.c_int16(wave_type)
+        sweep_type = ctypes.c_int32(sweep_type)
+        triggertype = ctypes.c_int32(triggertype)
+        triggerSource = ctypes.c_int32(triggerSource)
         assert_pico_ok(
             ps.ps2000aSetSigGenBuiltIn(
                 self.chandle,
                 offset,
                 pk_to_pk,
-                ctypes.c_int16(wave_type),
+                wave_type,
                 start_frequency,
                 stop_frequency,
                 increment,
                 dwell_time,
-                ctypes.c_int32(sweep_type),
+                sweep_type,
                 operation,
                 shots,
                 sweeps,
-                ctypes.c_int32(triggertype),
-                ctypes.c_int32(triggerSource),
+                triggertype,
+                triggerSource,
                 extInThreshold,
             )
         )
@@ -122,6 +126,9 @@ class PicoAWG:
             triggerSource (int): The trigger source (channel A, channel B, external, or software).
             extInThreshold (int): The external trigger voltage threshold in millivolts.
         """
+        sweep_type = ctypes.c_int32(sweep_type)
+        triggertype = ctypes.c_int32(triggertype)
+        triggerSource = ctypes.c_int32(triggerSource)
         assert_pico_ok(
             ps.ps2000aSetSigGenArbitrary(
                 self.chandle,
@@ -574,7 +581,7 @@ class PicoScope2000a:
     def __init__(self):
         self.chandle = ctypes.c_int16()
         status = {}
-        assert_pico_ok(ps.ps2000aOpenUnit(ctypes.byref(self.chandle), None, 1))
+        assert_pico_ok(ps.ps2000aOpenUnit(ctypes.byref(self.chandle), None))
         self.oscilloscope = PicoOscilloscope(self.chandle)
         self.awg = PicoAWG(self.chandle)
 
