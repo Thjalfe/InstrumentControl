@@ -191,7 +191,7 @@ class TiSapphire:
     """
 
     def __init__(self, com_port, NSL=10, PSL=10):
-        from .Newport_control import actuator
+        from Newport_control import actuator
 
         # Set up parameters for Ti Sa control, this file is installed automatically when the Newport SMC100 software is installed
         SMC_file_loc = (

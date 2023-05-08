@@ -15,7 +15,7 @@ class OSA:
         sweeptype="SGL",
         Trace="A",
         sweep_time=0,
-        sample=None,
+        sample=0,
         GPIB_num=[0, 18],
     ):
         """
@@ -48,8 +48,7 @@ class OSA:
         self.device.timeout = 30000
         self.set_span(wavelength_start, wavelength_end)
         self.set_res(resolution)
-        if sample is not None:
-            self.set_sample(sample)
+        self.set_sample(sample)
         self.set_sens(sensitivity)
         if self.device.query("TLSSYNC?")[0] == str(1):
             self.TLS_on = 1
