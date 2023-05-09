@@ -140,13 +140,13 @@ class PicoAWG:
                 dwell_count,
                 waveform_data,
                 waveform_size,
-                ctypes.c_int32(sweep_type),
+                sweep_type,
                 operation,
                 index_mode,
                 shots,
                 sweeps,
-                ctypes.c_int32(triggertype),
-                ctypes.c_int32(triggerSource),
+                triggertype,
+                triggerSource,
                 extInThreshold,
             )
         )
@@ -231,20 +231,23 @@ class PicoAWG:
             dds_freq = 48 * 10**6
             awgBufferSize = 4096
             phaseAccumulatorSize = 2**32
-            start_delta_phase = int(
+            start_delta_phase = round(
                 self.start_frequency
                 / dds_freq
                 * phaseAccumulatorSize
                 * waveform_size
                 / awgBufferSize
+                * 1.2025695931477516
             )
-            stop_delta_phase = int(
+            stop_delta_phase = round(
                 self.stop_frequency
                 / dds_freq
                 * phaseAccumulatorSize
                 * waveform_size
                 / awgBufferSize
+                * 1.2025695931477516
             )
+            print(start_delta_phase, stop_delta_phase)
             self.waveform_data = waveform_data
             self.set_sig_gen_arb(
                 self.offset,
@@ -352,6 +355,10 @@ class PicoOscilloscope:
         self.ratio_mode = 0
         self.downsample_ratio = 0
         self.downsample_mode = 0
+        self.threshold = 1024
+        self.direction = 2  # rising direction
+        self.delay = 0
+        self.auto_trigger_ms = 0
 
     def set_params(
         self,
@@ -371,6 +378,10 @@ class PicoOscilloscope:
         ratio_mode=None,
         downsample_ratio=None,
         downsample_mode=None,
+        threshold=None,
+        direction=None,
+        delay=None,
+        auto_trigger_ms=None,
     ):
         """
         Set parameters for the PicoOscilloscope.
@@ -391,6 +402,10 @@ class PicoOscilloscope:
         ratio_mode (int): ratio mode for downsampling; 0 for None, 1 for Aggregate, 2 for Decimate, 3 for Average
         downsample_ratio (int): downsampling ratio
         downsample_mode (int): downsampling mode; 0 for None, 1 for Simple, 2 for Peak Detection
+        threshold (int): threshold for the trigger event (adc counts currently)
+        direction (int): direction of the trigger event; 0 for Rising, 1 for Falling, 2 for Rising or Falling
+        delay (int): delay in samples from the trigger event
+        auto_trigger_ms (int): timeout in milliseconds for auto trigger
         """
         if channel is not None:
             self.channel = channel
@@ -427,6 +442,14 @@ class PicoOscilloscope:
             self.downsample_ratio = downsample_ratio
         if downsample_mode is not None:
             self.downsample_mode = downsample_mode
+        if threshold is not None:
+            self.threshold = threshold
+        if direction is not None:
+            self.direction = direction
+        if delay is not None:
+            self.delay = delay
+        if auto_trigger_ms is not None:
+            self.auto_trigger_ms = auto_trigger_ms
         if channel_change:
             self.set_channel()
 
@@ -442,6 +465,22 @@ class PicoOscilloscope:
                 self.coupling_type,
                 self.channel_range,
                 self.analogue_offset,
+            )
+        )
+
+    def set_trigger(self):
+        """
+        Configure the oscilloscope trigger settings according to the current parameters.
+        """
+        assert_pico_ok(
+            ps.ps2000aSetSimpleTrigger(
+                self.chandle,
+                self.enabled,
+                self.channel,
+                self.threshold,
+                self.direction,
+                self.delay,
+                self.auto_trigger_ms,
             )
         )
 
@@ -475,7 +514,7 @@ class PicoOscilloscope:
             peaks_wanted (int, optional): The number of peaks to capture. Defaults to 5.
         """
         period = 1 / frequency
-        time_interval_s = 2 ** (self.timebase) * 1e-9
+        time_interval_s = 2 ** (self.timebase + 1) * 1e-9
         new_sampling_rate = int(peaks_wanted * period / time_interval_s)
         self.pre_trigger = int(new_sampling_rate / 2)
         self.post_trigger = int(new_sampling_rate / 2)
@@ -558,7 +597,26 @@ class PicoOscilloscope:
         maxADC = ctypes.c_int16()
         assert_pico_ok(ps.ps2000aMaximumValue(self.chandle, ctypes.byref(maxADC)))
         adc_to_mv = adc2mV(self.bufferMax, self.channel_range, maxADC)
-        return adc_to_mv
+        return adc_to_mv, maxADC.value
+
+    def calculate_pulselength(self, mV, time_axis):
+        threshold = np.max(mV) / 2
+        high_voltage_regions = np.where(mV > threshold)[0]
+        high_lengths = np.split(
+            high_voltage_regions, np.where(np.diff(high_voltage_regions) != 1)[0] + 1
+        )
+        high_lengths = [len(region) for region in high_lengths]
+        longest_region = max(high_lengths)
+        pulse_length = longest_region * (time_axis[1] - time_axis[0])
+        # find low voltage length
+        low_voltage_regions = np.where(mV < threshold)[0]
+        low_lengths = np.split(
+            low_voltage_regions, np.where(np.diff(low_voltage_regions) != 1)[0] + 1
+        )
+        low_lengths = [len(region) for region in low_lengths]
+        longest_region = max(low_lengths)
+        pulse_dist = longest_region * (time_axis[1] - time_axis[0])
+        return pulse_length, pulse_dist
 
     def run_scope(self):
         """
@@ -571,10 +629,11 @@ class PicoOscilloscope:
             pass
         self.set_data_buffers()
         samples, overflow = self.get_values()
-        mV = self.get_adc_to_mv()
+        mV, maxADC = self.get_adc_to_mv()
         time_interval_us = self.get_timebase() * 1e-3
         time_axis = np.linspace(0, time_interval_us * samples, self.num_samples)
-        return time_axis, mV, overflow
+        pulse_length, pulse_dist = self.calculate_pulselength(mV, time_axis)
+        return time_axis, mV, overflow, maxADC, pulse_length, pulse_dist
 
 
 class PicoScope2000a:
