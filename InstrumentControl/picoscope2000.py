@@ -247,7 +247,6 @@ class PicoAWG:
                 / awgBufferSize
                 * 1.2025695931477516
             )
-            print(start_delta_phase, stop_delta_phase)
             self.waveform_data = waveform_data
             self.set_sig_gen_arb(
                 self.offset,
@@ -599,8 +598,8 @@ class PicoOscilloscope:
         adc_to_mv = adc2mV(self.bufferMax, self.channel_range, maxADC)
         return adc_to_mv, maxADC.value
 
-    def calculate_pulselength(self, mV, time_axis):
-        threshold = np.max(mV) / 2
+    def calculate_pulselength(self, mV, time_axis, threshold_high, threshold_low):
+        threshold = np.max(mV) * threshold_high
         high_voltage_regions = np.where(mV > threshold)[0]
         high_lengths = np.split(
             high_voltage_regions, np.where(np.diff(high_voltage_regions) != 1)[0] + 1
@@ -609,6 +608,7 @@ class PicoOscilloscope:
         longest_region = max(high_lengths)
         pulse_length = longest_region * (time_axis[1] - time_axis[0])
         # find low voltage length
+        threshold = np.max(mV) * threshold_low
         low_voltage_regions = np.where(mV < threshold)[0]
         low_lengths = np.split(
             low_voltage_regions, np.where(np.diff(low_voltage_regions) != 1)[0] + 1
@@ -618,7 +618,7 @@ class PicoOscilloscope:
         pulse_dist = longest_region * (time_axis[1] - time_axis[0])
         return pulse_length, pulse_dist
 
-    def run_scope(self):
+    def run_scope(self, calc_pulselength=True, threshold_high=0.9, threshold_low=0.1):
         """
         Run the oscilloscope, wait for data acquisition, and retrieve the results.
         Returns:
@@ -632,7 +632,10 @@ class PicoOscilloscope:
         mV, maxADC = self.get_adc_to_mv()
         time_interval_us = self.get_timebase() * 1e-3
         time_axis = np.linspace(0, time_interval_us * samples, self.num_samples)
-        pulse_length, pulse_dist = self.calculate_pulselength(mV, time_axis)
+        if calc_pulselength:
+            pulse_length, pulse_dist = self.calculate_pulselength(mV, time_axis, threshold_high, threshold_low)
+        else:
+            pulse_length, pulse_dist = None, None
         return time_axis, mV, overflow, maxADC, pulse_length, pulse_dist
 
 
