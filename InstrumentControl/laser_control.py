@@ -6,10 +6,17 @@ import copy
 import os
 import json
 from OSA_control import OSA
-from scipy.interpolate import interp1d, CubicSpline
+from scipy.interpolate import CubicSpline, RectBivariateSpline
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
-calibration_file = os.path.join(script_dir, "calibration_data", "laser_calibration.json")
-with open(calibration_file, 'r') as json_file:
+calibration_file = os.path.join(
+    script_dir, "calibration_data", "laser_calibration.json"
+)
+# calibration_file = os.path.join(
+#     os.getcwd(), "calibration_data", "laser_calibration.json"
+# )
+
+with open(calibration_file, "r") as json_file:
     calibration_data = json.load(json_file)
 
 
@@ -23,6 +30,10 @@ class laser:
     actual_peaks_ando = calibration_data["actual_peaks_ando"]
     andoGPIB23_power_calibration = calibration_data["andoGPIB23"]
     andoGPIB24_power_calibration = calibration_data["andoGPIB24"]
+    power_cal_xy_axis = [
+        calibration_data["ando_power_cal_powers_set_on_ando"],
+        calibration_data["ando_power_cal_wl"],
+    ]
 
     def __init__(
         self, type, target_wavelength, power="default", wl_interp=False, GPIB_num=0
@@ -54,7 +65,8 @@ class laser:
         if self.type == "agilent":
             self.device = rm.open_resource(f"GPIB{GPIB_num}::10::INSTR")
         self.set_wavelength(target_wavelength)
-        self.set_power(power)
+        self.target_power = power
+        self.set_power(self.target_power)
 
     def set_wavelength(self, wavelength):
         """
@@ -84,6 +96,7 @@ class laser:
                 self.wavelength_device_argument = wavelength
             self.device.write("WA:" + str(self.wavelength_device_argument))
             self.target_wavelength = wavelength
+            self.actual_wavelength = wavelength
         if self.type == "ando" or self.type == "ando2":
             if self.wl_interp:
                 self.wavelength_device_argument = np.round(
@@ -96,6 +109,7 @@ class laser:
                 self.wavelength_device_argument = wavelength
             self.device.write("TWL" + str(self.wavelength_device_argument))
             self.target_wavelength = wavelength
+            self.actual_wavelength = wavelength
         if self.type == "agilent":
             self.wavelength_device_argument = wavelength
             self.device.write(
@@ -104,15 +118,23 @@ class laser:
             self.target_wavelength = wavelength
             self.actual_wavelength = wavelength
 
-    def get_true_power(self):
+    def get_true_power(self, power):
         if self.type == "ando":
-            pow_interp = CubicSpline(self.andoGPIB24_power_calibration[0], self.andoGPIB24_power_calibration[1])
-            return pow_interp(self.target_wavelength)
+            pow_interp = RectBivariateSpline(
+                laser.power_cal_xy_axis[0],
+                laser.power_cal_xy_axis[1],
+                laser.andoGPIB24_power_calibration,
+            )
+            return np.squeeze(pow_interp(power, self.actual_wavelength))
         elif self.type == "ando2":
-            pow_interp = CubicSpline(self.andoGPIB23_power_calibration[0], self.andoGPIB23_power_calibration[1])
-            return pow_interp(self.target_wavelength)
+            pow_interp = RectBivariateSpline(
+                laser.power_cal_xy_axis[0],
+                laser.power_cal_xy_axis[1],
+                laser.andoGPIB23_power_calibration,
+            )
+            return np.squeeze(pow_interp(power, self.actual_wavelength))
 
-    def set_power(self, power):
+    def set_power(self, power, adjust_power=True):
         if self.type == "thorlabs":
             pass
         if self.type == "santec":
@@ -123,8 +145,13 @@ class laser:
                 print("Power must be between 50 and 118")
         if self.type == "ando" or self.type == "ando2":
             if power >= -10 and power <= 8:
-                self.device.write("TPDB" + str(power))  # Set ando power
-                self.power = power
+                if adjust_power:
+                    self.target_power = power
+                    self.adjust_power()
+                else:
+                    self.device.write("TPDB" + str(power))  # Set ando power
+                    self.target_power = power
+                    self.power = power
             else:
                 print("Power must be between -10 and 8")
         if self.type == "agilent":
@@ -133,6 +160,16 @@ class laser:
                 self.power = power
             else:
                 print("Power must be between -10 and 6")
+
+    def adjust_power(self):
+        cur_power = self.get_true_power(self.target_power)
+        power_diff = np.abs(self.target_power) - np.abs(cur_power)
+        if power_diff < 0:
+            self.device.write("TPDB" + str(self.target_power - power_diff))
+            self.power = self.target_power - power_diff
+        else:
+            self.device.write("TPDB" + str(self.target_power + power_diff))
+            self.power = self.target_power + power_diff
 
     def adjust_wavelength(self, res=0.01, sens="SMID", OSA_GPIB_num=[0, 18]):
         """
@@ -198,7 +235,6 @@ class laser:
             self.device.write("L0")
         else:
             print("Only works for ando")
-
 
 
 class TiSapphire:
@@ -292,3 +328,7 @@ class TiSapphire:
                 )
             wl_cur = osa.wavelengths[np.argmax(osa.powers)]
             nm_diff = target_wl - wl_cur
+
+
+if __name__ == "__main__":
+    ando = laser("ando2", 1570, power=0, GPIB_num=1)
