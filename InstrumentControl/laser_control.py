@@ -4,10 +4,13 @@ import time
 from pylablib.devices import Thorlabs
 import copy
 import os
+import json
 from OSA_control import OSA
+from scipy.interpolate import interp1d, CubicSpline
 script_dir = os.path.dirname(os.path.abspath(__file__))
-calibration_file = os.path.join(script_dir, "calibration_data", "laser_calibration.npz")
-calibration_data = np.load(calibration_file)
+calibration_file = os.path.join(script_dir, "calibration_data", "laser_calibration.json")
+with open(calibration_file, 'r') as json_file:
+    calibration_data = json.load(json_file)
 
 
 class laser:
@@ -18,13 +21,15 @@ class laser:
     actual_peaks_santec = calibration_data["actual_peaks_santec"]
     wavelength_array_ando = calibration_data["wavelength_array_ando"]
     actual_peaks_ando = calibration_data["actual_peaks_ando"]
+    andoGPIB23_power_calibration = calibration_data["andoGPIB23"]
+    andoGPIB24_power_calibration = calibration_data["andoGPIB24"]
 
     def __init__(
         self, type, target_wavelength, power="default", wl_interp=False, GPIB_num=0
     ):
         self.type = type
         self.target_wavelength = target_wavelength
-        self.actual_wavelength = 0
+        self.actual_wavelength = target_wavelength
         self.wl_interp = wl_interp
         rm = visa.ResourceManager()
 
@@ -97,6 +102,15 @@ class laser:
                 "SOURCE1:CHAN1:WAV " + str(self.wavelength_device_argument) + "NM"
             )
             self.target_wavelength = wavelength
+            self.actual_wavelength = wavelength
+
+    def get_true_power(self):
+        if self.type == "ando":
+            pow_interp = CubicSpline(self.andoGPIB24_power_calibration[0], self.andoGPIB24_power_calibration[1])
+            return pow_interp(self.target_wavelength)
+        elif self.type == "ando2":
+            pow_interp = CubicSpline(self.andoGPIB23_power_calibration[0], self.andoGPIB23_power_calibration[1])
+            return pow_interp(self.target_wavelength)
 
     def set_power(self, power):
         if self.type == "thorlabs":
@@ -173,16 +187,18 @@ class laser:
     def close(self):
         self.device.close()
 
-    def toggle_laser(self):
+    def laserON(self):
         if self.type == "ando" or self.type == "ando2":
-            state = int(self.device.query("L?")[0])
-            if state == 0:
-                toggle_signal = 1
-            else:
-                toggle_signal = 0
-            self.device.write("L" + str(toggle_signal))
+            self.device.write("L1")
         else:
             print("Only works for ando")
+
+    def laserOFF(self):
+        if self.type == "ando" or self.type == "ando2":
+            self.device.write("L0")
+        else:
+            print("Only works for ando")
+
 
 
 class TiSapphire:

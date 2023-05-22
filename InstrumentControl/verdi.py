@@ -2,8 +2,6 @@ import time
 import serial
 import traceback
 
-ON = 1
-OFF = 0
 EOL = "\r\n"
 
 
@@ -140,7 +138,7 @@ class verdiLaser:
         if self.portOK:
             self.port.write(b"L=0" + EOL.encode())
 
-    def enableON(self):
+    def activeON(self):
         """ENABLE the laser."""
         if self.portOK:
             self.port.write(b"L=1" + EOL.encode())
@@ -154,7 +152,7 @@ class verdiLaser:
     def setShutter(self, state):
         """Set the shutter state."""
         if self.portOK:
-            if state in (1, 0, "ON", "OFF"):
+            if state in (1, 0):
                 self.port.write(f"S={state}{EOL}".encode())
 
     def getPower(self):
@@ -227,8 +225,8 @@ class verdiLaser:
 
 if __name__ == "__main__":
     laser = verdiLaser("COM4")
-    laser.enableON()
-    laser.setShutter(OFF)
+    laser.activeON()
+    laser.setShutter()
     laser.setPower(4.5)
 
     # print("")

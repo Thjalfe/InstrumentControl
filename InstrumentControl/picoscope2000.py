@@ -267,6 +267,23 @@ class PicoAWG:
                 self.extInThreshold,
             )
 
+    def set_square_wave(
+        self,
+        freq,
+        duty_cycle,
+        waveform_size=2**12,
+        pk_to_pk=2 * 10**6,
+        offset=1 * 10**6,
+    ):
+        waveform = (ctypes.c_int16 * waveform_size)()
+        threshold = int(waveform_size * duty_cycle)
+        for i in range(waveform_size):
+            if i < threshold:
+                waveform[i] = 32767
+            else:
+                waveform[i] = -32767
+        self.set_params(freq, waveform_data=waveform, pk_to_pk=pk_to_pk, offset=offset)
+
     def set_frequency(self, new_freq):
         self.start_frequency = new_freq
         self.set_params(start_frequency=new_freq)
@@ -633,7 +650,9 @@ class PicoOscilloscope:
         time_interval_us = self.get_timebase() * 1e-3
         time_axis = np.linspace(0, time_interval_us * samples, self.num_samples)
         if calc_pulselength:
-            pulse_length, pulse_dist = self.calculate_pulselength(mV, time_axis, threshold_high, threshold_low)
+            pulse_length, pulse_dist = self.calculate_pulselength(
+                mV, time_axis, threshold_high, threshold_low
+            )
         else:
             pulse_length, pulse_dist = None, None
         return time_axis, mV, overflow, maxADC, pulse_length, pulse_dist
@@ -649,3 +668,7 @@ class PicoScope2000a:
 
     def close(self):
         assert_pico_ok(ps.ps2000aCloseUnit(self.chandle))
+
+
+if __name__ == "__main__":
+    pico = PicoScope2000a()
