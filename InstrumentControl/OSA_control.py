@@ -149,3 +149,13 @@ class OSA:
 
     def close(self):
         self.device.close()
+
+if __name__ == "__main__":
+
+    osa = OSA(
+        1569.62,
+        1569.62,
+        resolution=0.05,
+        GPIB_num=[1, 19],
+        sweeptype="SGL",
+    )

@@ -130,8 +130,7 @@ class verdiLaser:
             self.portPause()
             self.setPower(0.01)
             self.portPause()
-            self.port.close()
-            self.portOK = False
+            self.standbyON()
 
     def standbyON(self):
         """Put the laser in STANDBY."""

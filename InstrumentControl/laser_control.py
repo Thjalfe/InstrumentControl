@@ -118,6 +118,10 @@ class laser:
             self.target_wavelength = wavelength
             self.actual_wavelength = wavelength
 
+    def get_wavelength(self):
+        if self.type == "ando" or self.type == "ando2":
+            return float(self.device.query("TWL?"))
+
     def get_true_power(self, power):
         if self.type == "ando":
             pow_interp = RectBivariateSpline(
@@ -332,3 +336,4 @@ class TiSapphire:
 
 if __name__ == "__main__":
     ando = laser("ando2", 1570, power=0, GPIB_num=1)
+

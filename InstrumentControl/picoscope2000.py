@@ -657,6 +657,35 @@ class PicoOscilloscope:
             pulse_length, pulse_dist = None, None
         return time_axis, mV, overflow, maxADC, pulse_length, pulse_dist
 
+    def run_data_collection_loop(self, loop_len):
+        mV = np.zeros(loop_len * self.num_samples)
+        maxADC = np.zeros(loop_len)
+        for i in range(loop_len):
+            self.run_block()
+            while not self.is_ready():
+                pass
+            self.set_data_buffers()
+            samples, overflow = self.get_values()
+            mV[i * self.num_samples: (i + 1) * self.num_samples], maxADC[i] = self.get_adc_to_mv()
+        return mV, maxADC
+
+    def cw_pm_mode(self, time_wanted_ms, num_samples=10000):
+        self.num_samples = num_samples
+        self.set_params(
+            num_samples=num_samples,
+            pre_trigger=int(num_samples / 2),
+            post_trigger=int(num_samples / 2),
+        )
+        time_interval_ms = self.get_timebase() * 1e-6
+        total_time = time_interval_ms * num_samples
+        if total_time < time_wanted_ms:
+            run_data_collection_nums = int(time_wanted_ms / total_time)
+            print(run_data_collection_nums)
+            mV, maxADC = self.run_data_collection_loop(run_data_collection_nums)
+        else:
+            mV, maxADC = self.run_data_collection_loop(1)
+        return mV, maxADC
+
 
 class PicoScope2000a:
     def __init__(self):
@@ -672,3 +701,18 @@ class PicoScope2000a:
 
 if __name__ == "__main__":
     pico = PicoScope2000a()
+# |%%--%%| <objJra7z4G|iarnCbNWW2>
+if __name__ == "__main__":
+    pico.oscilloscope.set_params(
+        channel=3,
+        enabled=1,
+        channel_range=4,
+        oversample=1,
+        timebase=6,
+        threshold=50,
+    )
+    i = 0
+    while i < 10:
+        y, maxADC = pico.oscilloscope.cw_pm_mode(2)
+        print(np.mean(y))
+        i += 1
